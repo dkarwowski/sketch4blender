@@ -1,4 +1,5 @@
 import os
+
 import ply.lex as lex
 import ply.yacc as yacc
 from ply.lex import TOKEN
@@ -14,7 +15,6 @@ class Parser:
 
     reserved = { keyword.lower() : keyword for keyword in keyword_tokens }
 
-    # TODO(david): remove reserved words from having to be input manually
     tokens = [ 'ID'       , 'BRACKET_ID'  , 'DBL_BRACKET_ID' , 'CURLY_ID' ,
                'ANGLE_ID' , 'NUM'         , 'OPTS_STR'       , 'SPECIAL'  ,
                'TICK'     , 'EMPTY_ANGLE' , 'PAREN_ID'       ] + keyword_tokens
@@ -200,17 +200,13 @@ class Parser:
 
     objects = []
 
-    def p_empty(self, p):
-        """empty : """
-        p[0] = None
-
     def p_input(self, p):
         """input : defs_and_decls global_decl_block"""
         objects = p[1]
 
     def p_global_decl_block(self, p):
         """global_decl_block : GLOBAL '{' global_decls '}' 
-                             | empty"""
+                             |"""
         pass
 
     def p_global_decls(self, p):
@@ -222,7 +218,7 @@ class Parser:
 
     def p_global_set_opts(self, p):
         """global_decl : SET OPTS_STR"""
-        global_env.set_env_opts(p[2], p.lineno(1))
+        global_env.set_opts(p[2], p.lineno(1))
 
     def p_global_pbox_scalar(self, p):
         """global_decl : PICTUREBOX '[' scalar_expr ']' """
@@ -231,19 +227,19 @@ class Parser:
     def p_global_pbox_baseline(self, p):
         """global_decl : PICTUREBOX opt_baseline point point"""
         global_env.set_baseline(p[2], p.lineno(1))
-        global_env.set_env_extent(p[3], p[4], p.lineno(1))
+        global_env.set_extent(p[3], p[4], p.lineno(1))
 
     def p_global_camera(self, p):
         """global_decl : CAMERA transform_expr"""
-        global_env.set_env_camera(p[2], p.lineno(1))
+        global_env.set_camera(p[2], p.lineno(1))
 
     def p_global_frame(self, p):
         """global_decl : FRAME"""
-        global_env.set_env_frame(None, p.lineno(1))
+        global_env.set_frame(None, p.lineno(1))
 
     def p_global_frame_opts(self, p):
         """global_decl : FRAME OPTS_STR"""
-        global_env.set_env_frame(p[2], p.lineno(1))
+        global_env.set_frame(p[2], p.lineno(1))
 
     def p_global_language(self, p):
         """global_decl : LANGUAGE output_language"""
@@ -266,7 +262,7 @@ class Parser:
 
     def p_comma_macro(self, p):
         """comma_macro_package : ',' macro_package
-                               | empty"""
+                               |"""
         if p[1] == ',':
             p[0] = p[2]
         else:
@@ -284,7 +280,7 @@ class Parser:
 
     def p_opt_baseline(self, p):
         """opt_baseline : '[' scalar_expr ']'
-                        | empty"""
+                        |"""
         if p[1] == '[':
             p[0] = p[2]
         else:
@@ -317,8 +313,8 @@ class Parser:
         name = p[1] if p[2] == 'EMPTY_ANGLE' else p[2]
         tag = Tag() if p[3] == 'EMPTY_ANGLE' else p[3]
 
-        sym_tab.new_symbol(name, 0, tag, p.lineno(1))
-        p[0] = None
+        sym_tab.new_symbol(name, None, tag, p.lineno(1))
+        p[0] = []
 
     def p_tagged_defs(self, p):
         """tagged_defs : DEF ID ANGLE_ID defable"""
@@ -378,32 +374,32 @@ class Parser:
 
     def p_decl_curly(self, p):
         """decl : CURLY_ID"""
-        p[0] = [sym_tab.look_up_drawable(p[1], p.lineno(1))]
+        p[0] = [sym_tab.lookup(p[1], O_DRAWABLE, p.lineno(1))]
 
     def p_decl_scoped(self, p):
         """decl : '{' new_scope defs_and_decls '}' """
         # TODO(david): throw an error
         p[0] = p[3]
-        sym_tab.pop()
+        sym_tab = sym_tab.pop()
 
     def p_new_scope(self, p):
         """new_scope :"""
-        sym_tab.push()
+        sym_tab = sym_tab.push()
 
         # OPTIONS ################################################################
 
     def p_opt_star(self, p):
         """opt_star : EMPTY_ANGLE
-                    | empty"""
+                    |"""
         p[0] = 1 if p[1] else 0
 
     def p_option_id_list(self, p):
         """option_id_list : option_id_list ',' ID"""
-        p[0] = sym_tab.look_up_and_append_to_opts(p[1], p.lineno(1), p[3])
+        p[0] = p[1] + [sym_tab.lookup(p[3], (Options,), p.lineno(1))]
 
     def p_option_id_list_base(self, p):
         """option_id_list : ID"""
-        p[0] = sym_tab.look_up_and_append_to_opts(None, p.lineno(1), p[1])
+        p[0] = [sym_tab.lookup(p[1], (Options,), p.lineno(1))]
 
     def p_options_str(self, p):
         """options : OPTS_STR"""
@@ -411,14 +407,14 @@ class Parser:
 
     def p_options_brkt(self, p):
         """options : BRACKET_ID"""
-        p[0] = sym_tab.lookup(Options, p[1], p.lineno(1))
+        p[0] = sym_tab.lookup(p[1], (Options,), p.lineno(1))
 
     def p_options_ids(self, p):
         """options : '[' option_id_list ']' """
         p[0] = p[2]
 
     def p_options_empty(self, p):
-        """options : empty"""
+        """options :"""
         p[0] = None
 
     # POINTS #################################################################
@@ -443,10 +439,10 @@ class Parser:
 
     def p_rev_special_args(self, p):
         """rev_special_args : rev_special_args special_arg"""
-        p[0] = p[2] + p[1]
+        p[0] = [p[2]] + p[1]
 
-    def p_rev_special_args(self, p):
-        """rev_special_args : empty"""
+    def p_rev_special_args_empty(self, p):
+        """rev_special_args :"""
         p[0] = None
 
     def p_special_arg_def(self, p):
@@ -458,7 +454,7 @@ class Parser:
 
     def p_special_arg_lookup(self, p):
         """special_arg : BRACKET_ID"""
-        p[0] = [sym_tab.lookup(p[1])] # TODO(david): limit to vector or OPTS
+        p[0] = [sym_tab.lookup(p[1], (Vector, Options), p.lineno(1))]
 
     # TRANSFORMS #############################################################
 
@@ -501,27 +497,26 @@ class Parser:
                                        (Point, Vector),
                                        (Vector, Vector)):
             p[0] = p[1] - p[3]
-        elif p[2] == '*' and types in ((float, float),
+        elif (p[2] == '*' and types in ((float, float),
                                        (float, Vector),
                                        (Vector, float),
+                                       (Transform, Transform),
+                                       (Transform, Point),
+                                       (Transform, Vector))) or \
+             (p[2] == '.' and types in ((float, float),
+                                       (Vector, float),
+                                       (float, Vector),
                                        (Vector, Vector),
                                        (Transform, Transform),
                                        (Transform, Point),
-                                       (Transform, Vector)):
+                                       (Trasnform, Vector))):
             p[0] = p[1] * p[3]
+        elif p[2] == '*' and types in ((Vector, Vector),):
+            p[0] = p[1].cross(p[3])
         elif p[2] == '/' and types in ((float, float),
                                        (Vector, float),
                                        (float, Vector)):
             p[0] = p[1] / p[3]
-        elif p[2] == '.' and types in ((Vector, Vector),):
-            p[0] = p[1].dot(p[3])
-        elif p[2] == '.' and types in ((float, float),
-                                       (Vector, float),
-                                       (float, Vector),
-                                       (Transform, Transform),
-                                       (Transform, Point),
-                                       (Trasnform, Vector)):
-            p[0] = p[1] * p[3]
         elif p[2] == 'THEN' and types in ((Transform, Transform),
                                           (Point, Transform),
                                           (Vector, Transform)):
@@ -604,7 +599,7 @@ class Parser:
 
     def p_scalar_sym(self, p):
         """scalar : ID"""
-        p[0] = sym_tab.lookup(p[1], p.lineno(1))
+        p[0] = sym_tab.lookup(p[1], (float,), p.lineno(1))
 
     def p_scalar_expr(self, p):
         """scalar_expr : expr"""
@@ -623,7 +618,7 @@ class Parser:
 
     def p_point_id(self, p):
         """point : PAREN_ID"""
-        p[0] = sym_tab.lookup(p[1], p.lineno(1))
+        p[0] = sym_tab.lookup(p[1], (Point,), p.lineno(1))
 
     def p_point_expr(self, p):
         """point_expr : expr"""
@@ -638,7 +633,7 @@ class Parser:
 
     def p_vector_id(self, p):
         """vector : BRACKET_ID"""
-        p[0] = sym_tab.lookup(p[1], p.lineno(1))
+        p[0] = sym_tab.lookup(p[1], (Vector,), p.lineno(1))
 
     def p_vector_literal_3(self, p):
         """vector_literal : '[' scalar_expr ',' scalar_expr ',' scalar_expr ']'"""
@@ -734,13 +729,21 @@ class Parser:
 
     def p_transform_id(self, p):
         """transform : DBL_BRACKET_ID"""
-        p[0] = sym_tab.lookup(p[1])
+        p[0] = sym_tab.lookup(p[1], (Transform,), p.lineno(1))
 
     def p_transform_expr(self, p):
         """transform_expr : expr"""
         p[0] = p[1] if isinstance(p[1], Transform) else Transform()
 
+    def p_error(self, p):
+        if p:
+            print("Syntax error at token", p.type)
+            # Just discard the token and tell the parser it's okay.
+            self.parser.errok()
+        else:
+            print("Syntax error at EOF")
+
 if __name__=="__main__":
-    lexer = Parser()
+    lexer = Parser(debug=True)
     lex.runmain(lexer)
 
