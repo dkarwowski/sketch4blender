@@ -362,7 +362,7 @@ class SketchParser:
     def p_decl_sweep(self, p):
         """decl : SWEEP options '{' scalar_expr opt_star ',' transforms '}' point
                 | SWEEP options '{' scalar_expr opt_star ',' transforms '}' decl"""
-        point_obj = p[9] if type(p[9]) == list else [p[9]]
+        point_obj = p[9] if type(p[9]) == list else [Point(p[9])]
         p[0] = [Sweep(p[2], p[4], p[5], p[7], point_obj)]
 
     def p_decl_repeat(self, p):
@@ -396,7 +396,7 @@ class SketchParser:
     def p_opt_star(self, p):
         """opt_star : EMPTY_ANGLE
                     |"""
-        p[0] = 1 if p[1] else 0
+        p[0] = True if p[1] else False
 
     def p_option_id_list(self, p):
         """option_id_list : option_id_list ',' ID"""
