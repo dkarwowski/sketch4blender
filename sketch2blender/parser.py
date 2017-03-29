@@ -1,8 +1,13 @@
 import os
 
+from math import sqrt, sin, cos, asin, acos, atan2
+
 import ply.lex as lex
 import ply.yacc as yacc
 from ply.lex import TOKEN
+
+import geometry
+from geometry import Vector, Point, Transform
 
 class SketchParser:
     keyword_tokens = [ 'LANGUAGE'  , 'PSTRICKS' , 'TIKZ'    , 'LaTeX'      , 'ConTeXt'     ,
@@ -258,23 +263,23 @@ class SketchParser:
     def p_graphics_language(self, p):
         """graphics_language : PSTRICKS
                              | TIKZ"""
-        p[0] = GEOL_PSTRICKS if p[1] == "PSTRICKS" else GEOL_TIKZ
+        p[0] = 0 #GEOL_PSTRICKS if p[1] == "PSTRICKS" else GEOL_TIKZ
 
     def p_comma_macro(self, p):
         """comma_macro_package : ',' macro_package
                                |"""
         if p[1] == ',':
-            p[0] = p[2]
+            p[0] = 0 #p[2]
         else:
-            p[0] = GEOL_LATEX
+            p[0] = 0 #GEOL_LATEX
 
     def p_macro(self, p):
         """macro_package : LaTeX
                          | ConTeXt"""
         if p[1] == 'LaTeX':
-            p[0] = GEOL_LATEX
+            p[0] = 0 #GEOL_LATEX
         else:
-            p[0] = GEOL_CONTEXT
+            p[0] = 0 #GEOL_CONTEXT
 
         # BASELINE ###############################################################
 
@@ -357,7 +362,7 @@ class SketchParser:
     def p_decl_sweep(self, p):
         """decl : SWEEP options '{' scalar_expr opt_star ',' transforms '}' point
                 | SWEEP options '{' scalar_expr opt_star ',' transforms '}' decl"""
-        point_obj = p[9] if isinstance(p[9], list) else [p[9]]
+        point_obj = p[9] if type(p[9]) == list else [p[9]]
         p[0] = [Sweep(p[2], p[4], p[5], p[7], point_obj)]
 
     def p_decl_repeat(self, p):
@@ -526,9 +531,9 @@ class SketchParser:
 
     def p_expr_mag(self, p):
         """expr : '|' expr '|'"""
-        if isinstance(p[2], float):
+        if type(p[2]) == float:
             p[0] = p[2] if p[2] >= 0 else p[2]
-        elif isinstance(p[2], Vector):
+        elif type(p[2]) == Vector:
             p[0] = p[2].length
         else:
             p[0] = p[2] # TODO(david): error message
@@ -556,7 +561,7 @@ class SketchParser:
 
     def p_expr_unit(self, p):
         """expr : UNIT  '(' expr ')'"""
-        if isinstance(p[3], Vector):
+        if type(p[3]) == Vector:
             p[0] = p[3].normalized()
         else:
             p[0] = Vector((0.0, 0.0, 1.0))
@@ -568,7 +573,7 @@ class SketchParser:
                 | ASIN  '(' expr ')'
                 | ACOS  '(' expr ')'
                 | ATAN2 '(' expr ',' expr ')'"""
-        if not isinstance(p[3], float):
+        if not type(p[3]) == float:
             p[0] = 0.0 #TODO(david): error message
             return
         if p[1] == 'SQRT':
@@ -581,7 +586,7 @@ class SketchParser:
             p[0] = asin(p[3])
         elif p[1] == 'ACOS':
             p[0] = acos(p[3])
-        elif p[1] == 'ATAN2' and isinstance(p[5], float):
+        elif p[1] == 'ATAN2' and type(p[5]) == float:
             p[0] = atan2(p[3], p[5])
         else:
             p[0] = 0.0 #TODO(david): error message
@@ -603,7 +608,7 @@ class SketchParser:
 
     def p_scalar_expr(self, p):
         """scalar_expr : expr"""
-        if isinstance(p[1], float):
+        if type(p[1]) == float:
             p[0] = p[1]
         else:
             p[0] = 0.0 #TODO(david): error message
@@ -622,7 +627,7 @@ class SketchParser:
 
     def p_point_expr(self, p):
         """point_expr : expr"""
-        if isinstance(p[1], Point):
+        if type(p[1]) == Point:
             p[0] = p[1]
         else:
             p[0] = Point((0.0, 0.0, 0.0)) #TODO(david): error message
@@ -646,7 +651,7 @@ class SketchParser:
 
     def p_vector_expr(self, p):
         """vector_expr : expr"""
-        if isinstance(p[1], Vector):
+        if type(p[1]) == Vector:
             p[0] = p[1]
         else:
             p[0] = Vector((0.0, 0.0, 0.0)) #TODO(david): error message
@@ -668,11 +673,11 @@ class SketchParser:
         point = Point((0.0, 0.0, 0.0))
         vector = Vector((0.0, 0.0, 1.0))
         if len(p) > 5:
-            if isinstance(p[5], Point):
+            if type(p[5]) == Point:
                 point = p[5]
                 if len(p) > 7:
                     vector = p[7]
-            elif isinstance(p[5], Vector):
+            elif type(p[5]) == Vector:
                 vector = p[5]
             else:
                 #TODO(david): raise error
@@ -733,7 +738,7 @@ class SketchParser:
 
     def p_transform_expr(self, p):
         """transform_expr : expr"""
-        p[0] = p[1] if isinstance(p[1], Transform) else Transform()
+        p[0] = p[1] if type(p[1]) == Transform else Transform()
 
     def p_error(self, p):
         if p:
