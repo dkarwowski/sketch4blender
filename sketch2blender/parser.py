@@ -496,12 +496,14 @@ class SketchParser:
                                      (Vector, Vector),
                                      (Vector, Point),
                                      (Point, Vector)):
-            p[0] = p[1] + p[3]
+            # swap the addition to ensure a point is returned
+            p[0] = p[1] + p[3] if types[0] == Point else p[3] + p[1]
         elif p[2] == '-' and types in ((float, float),
                                        (Point, Point),
                                        (Point, Vector),
                                        (Vector, Vector)):
-            p[0] = p[1] - p[3]
+            # ensure Vector when subtracting points
+            p[0] = Vector(p[1] - p[3]) if types[1] == Point else p[1] - p[3]
         elif (p[2] == '*' and types in ((float, float),
                                        (float, Vector),
                                        (Vector, float),
@@ -525,7 +527,8 @@ class SketchParser:
         elif p[2] == 'THEN' and types in ((Transform, Transform),
                                           (Point, Transform),
                                           (Vector, Transform)):
-            p[0] = 0.0 #TODO(david): IMPLEMENT THIS
+            # should just be flipped version of before
+            p[0] = p[3] * p[1]
         else:
             p[0] = 0.0 #TODO(david): ERROR MESSAGE
 
