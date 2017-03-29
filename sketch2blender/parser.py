@@ -4,7 +4,7 @@ import ply.lex as lex
 import ply.yacc as yacc
 from ply.lex import TOKEN
 
-class Parser:
+class SketchParser:
     keyword_tokens = [ 'LANGUAGE'  , 'PSTRICKS' , 'TIKZ'    , 'LaTeX'      , 'ConTeXt'     ,
                        'CURVE'     , 'CAMERA'   , 'DEF'     , 'DOTS'       , 'FRAME'       ,
                        'GLOBAL'    , 'LINE'     , 'POLYGON' , 'PUT'        , 'REPEAT'      ,
