@@ -1,25 +1,25 @@
-from geometry import Transform, Box3
-from options  import Opts
-from copy     import copy
+from geometry import Transform, Point
+from opts     import Options
+from copy     import deepcopy
 
 def bits(num):
     return 1 << num
 
 class GlobalEnv(object):
-    EXTENT   = bits(0)
-    BASELINE = bits(1)
-    OPTS     = bits(2)
-    FRAME    = bits(3)
-    SPLIT    = bits(4)
-    CAMERA   = bits(8)
-    LANGUAGE = bits(9)
+    EXTENT   = 0
+    BASELINE = 1
+    OPTS     = 2
+    FRAME    = 3
+    SPLIT    = 4
+    CAMERA   = 8
+    LANGUAGE = 9
 
     def __init__(self):
         self.set_mask = 0
-        self.camera   = Transform.identity()
-        self.bb1      = Point3.origin()
-        self.bb2      = Point3.origin()
-        self.opts     = Opts()
+        self.camera   = Transform.Identity(4)
+        self.bb1      = Point()
+        self.bb2      = Point()
+        self.opts     = None
         self.frame    = ""
         self.language = 0
         self.baseline = 0.0
@@ -33,13 +33,13 @@ class GlobalEnv(object):
                 if self.is_set_p(flag):
                     return
                 self.set_mask |= flag
-                func(*args, **kwargs)
+                func(self, *args, **kwargs)
             return wrapper
         return decorator
 
     @check_set_p(bits(OPTS))
     def set_opts(self, opts, line):
-        self.opts.setup(opts, line)
+        self.opts = Options(opts, line)
 
     @check_set_p(bits(BASELINE))
     def set_baseline(self, baseline, line):
@@ -49,8 +49,8 @@ class GlobalEnv(object):
 
     @check_set_p(bits(EXTENT))
     def set_extent(self, p1, p2, line):
-        self.bb1 = copy(p1)
-        self.bb2 = copy(p2)
+        self.bb1 = deepcopy(p1)
+        self.bb2 = deepcopy(p2)
 
     @check_set_p(bits(CAMERA))
     def set_camera(self, camera, line):
@@ -67,9 +67,4 @@ class GlobalEnv(object):
     def get_transformed_extent(self):
         if self.is_set_p(self.EXTENT):
             return None
-
-        extent = Box3()
-        if self.is_set_p(self.CAMERA):
-            for i in range(8):
-
 
