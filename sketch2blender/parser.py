@@ -1,6 +1,6 @@
 import os
 
-from math import sqrt, sin, cos, asin, acos, atan2
+from math import sqrt, sin, cos, asin, acos, atan2, radians
 
 import ply.lex as lex
 import ply.yacc as yacc
@@ -8,6 +8,15 @@ from ply.lex import TOKEN
 
 import geometry
 from geometry import Vector, Point, Transform
+
+from global_env import GlobalEnv
+
+from scene import *
+O_DRAWABLE = (Dots, Line, Curve, Polygon, Special, Sweep, Repeat, Compound)
+
+from symtable import SymbolTable
+
+from opts import Options
 
 class SketchParser:
     keyword_tokens = [ 'LANGUAGE'  , 'PSTRICKS' , 'TIKZ'    , 'LaTeX'      , 'ConTeXt'     ,
@@ -53,6 +62,9 @@ class SketchParser:
                                 tabmodule=self.tabmodule)
 
         self.MAX_INPUT_DEPTH = 6
+
+        self.sym_tab = SymbolTable()
+        self.env     = GlobalEnv()
 
     def run(self):
         while 1:
@@ -103,7 +115,26 @@ class SketchParser:
     @TOKEN(r'special' + WS + r'*')
     def t_SPECIAL(self, t):
         # TODO(david): add a warning
+        result = ""
+
+        if len(self.lexer[-1].lexdata) <= self.lexer[-1].lexpos:
+            # TODO(david): error for no special
+            return result
+
+        delim = self.lexer[-1].lexdata[self.lexer[-1].lexpos]
+
+        ch = self.lexer[-1].lexpos + 1
+        while self.lexer[-1].lexdata[ch] != delim \
+                and len(self.lexer[-1].lexdata) > ch:
+            if self.lexer[-1].lexdata[ch] == "\n":
+                self._update_lineno(t)
+            result += self.lexer[-1].lexdata[ch]
+            ch += 1
+        # if self.lexer[-1].lexdata[ch] != delim: TODO(david): error
+
+        self.lexer[-1].lexpos = ch + 1
         self._update_lineno(t)
+        t.value = result
         return t
 
     @TOKEN(Identifier)
@@ -208,6 +239,7 @@ class SketchParser:
     def p_input(self, p):
         """input : defs_and_decls global_decl_block"""
         objects = p[1]
+        print(objects)
 
     def p_global_decl_block(self, p):
         """global_decl_block : GLOBAL '{' global_decls '}' 
@@ -223,32 +255,32 @@ class SketchParser:
 
     def p_global_set_opts(self, p):
         """global_decl : SET OPTS_STR"""
-        global_env.set_opts(p[2], p.lineno(1))
+        self.env.set_opts(p[2], p.lineno(1))
 
     def p_global_pbox_scalar(self, p):
         """global_decl : PICTUREBOX '[' scalar_expr ']' """
-        global_env.set_baseline(p[3], p.lineno(1))
+        self.env.set_baseline(p[3], p.lineno(1))
 
     def p_global_pbox_baseline(self, p):
         """global_decl : PICTUREBOX opt_baseline point point"""
-        global_env.set_baseline(p[2], p.lineno(1))
-        global_env.set_extent(p[3], p[4], p.lineno(1))
+        self.env.set_baseline(p[2], p.lineno(1))
+        self.env.set_extent(p[3], p[4], p.lineno(1))
 
     def p_global_camera(self, p):
         """global_decl : CAMERA transform_expr"""
-        global_env.set_camera(p[2], p.lineno(1))
+        self.env.set_camera(p[2], p.lineno(1))
 
     def p_global_frame(self, p):
         """global_decl : FRAME"""
-        global_env.set_frame(None, p.lineno(1))
+        self.env.set_frame(None, p.lineno(1))
 
     def p_global_frame_opts(self, p):
         """global_decl : FRAME OPTS_STR"""
-        global_env.set_frame(p[2], p.lineno(1))
+        self.env.set_frame(p[2], p.lineno(1))
 
     def p_global_language(self, p):
         """global_decl : LANGUAGE output_language"""
-        global_env.set_output_language(p[2], p.lineno(1))
+        self.env.set_output_language(p[2], p.lineno(1))
 
     def p_global_def(self, p):
         """global_decl : def"""
@@ -268,7 +300,7 @@ class SketchParser:
     def p_comma_macro(self, p):
         """comma_macro_package : ',' macro_package
                                |"""
-        if p[1] == ',':
+        if len(p) > 1:
             p[0] = 0 #p[2]
         else:
             p[0] = 0 #GEOL_LATEX
@@ -318,16 +350,16 @@ class SketchParser:
         name = p[1] if p[2] == 'EMPTY_ANGLE' else p[2]
         tag = Tag() if p[3] == 'EMPTY_ANGLE' else p[3]
 
-        sym_tab.new_symbol(name, None, tag, p.lineno(1))
+        self.sym_tab.new_symbol(name, None, tag, p.lineno(1))
         p[0] = []
 
     def p_tagged_defs(self, p):
         """tagged_defs : DEF ID ANGLE_ID defable"""
-        p[0] = sym_tab.new_symbol(p[2], p[3], p[4], p.lineno(2))
+        p[0] = self.sym_tab.new_symbol(p[2], p[3], p[4], p.lineno(2))
 
     def p_tagged_defs_rec(self, p):
         """tagged_defs : tagged_defs ANGLE_ID defable"""
-        p[0] = sym_tab.new_symbol(p[1], p[2], p[3], p.lineno(1))
+        p[0] = self.sym_tab.new_symbol(p[1], p[2], p[3], p.lineno(1))
 
     def p_defable_expr(self, p):
         """defable : expr"""
@@ -379,32 +411,32 @@ class SketchParser:
 
     def p_decl_curly(self, p):
         """decl : CURLY_ID"""
-        p[0] = [sym_tab.lookup(p[1], O_DRAWABLE, p.lineno(1))]
+        p[0] = [self.sym_tab.lookup(p[1], O_DRAWABLE, p.lineno(1))]
 
     def p_decl_scoped(self, p):
         """decl : '{' new_scope defs_and_decls '}' """
         # TODO(david): throw an error
         p[0] = p[3]
-        sym_tab = sym_tab.pop()
+        self.sym_tab = self.sym_tab.pop()
 
     def p_new_scope(self, p):
         """new_scope :"""
-        sym_tab = sym_tab.push()
+        self.sym_tab = self.sym_tab.push()
 
         # OPTIONS ################################################################
 
     def p_opt_star(self, p):
         """opt_star : EMPTY_ANGLE
                     |"""
-        p[0] = True if p[1] else False
+        p[0] = True if len(p) > 1 else False
 
     def p_option_id_list(self, p):
         """option_id_list : option_id_list ',' ID"""
-        p[0] = p[1] + [sym_tab.lookup(p[3], (Options,), p.lineno(1))]
+        p[0] = p[1] + [self.sym_tab.lookup(p[3], (Options,), p.lineno(1))]
 
     def p_option_id_list_base(self, p):
         """option_id_list : ID"""
-        p[0] = [sym_tab.lookup(p[1], (Options,), p.lineno(1))]
+        p[0] = [self.sym_tab.lookup(p[1], (Options,), p.lineno(1))]
 
     def p_options_str(self, p):
         """options : OPTS_STR"""
@@ -412,7 +444,7 @@ class SketchParser:
 
     def p_options_brkt(self, p):
         """options : BRACKET_ID"""
-        p[0] = sym_tab.lookup(p[1], (Options,), p.lineno(1))
+        p[0] = self.sym_tab.lookup(p[1], (Options,), p.lineno(1))
 
     def p_options_ids(self, p):
         """options : '[' option_id_list ']' """
@@ -448,7 +480,7 @@ class SketchParser:
 
     def p_rev_special_args_empty(self, p):
         """rev_special_args :"""
-        p[0] = None
+        p[0] = []
 
     def p_special_arg_def(self, p):
         """special_arg : scalar
@@ -459,7 +491,7 @@ class SketchParser:
 
     def p_special_arg_lookup(self, p):
         """special_arg : BRACKET_ID"""
-        p[0] = [sym_tab.lookup(p[1], (Vector, Options), p.lineno(1))]
+        p[0] = [self.sym_tab.lookup(p[1], (Vector, Options), p.lineno(1))]
 
     # TRANSFORMS #############################################################
 
@@ -607,7 +639,7 @@ class SketchParser:
 
     def p_scalar_sym(self, p):
         """scalar : ID"""
-        p[0] = sym_tab.lookup(p[1], (float,), p.lineno(1))
+        p[0] = self.sym_tab.lookup(p[1], (float,), p.lineno(1))
 
     def p_scalar_expr(self, p):
         """scalar_expr : expr"""
@@ -626,7 +658,7 @@ class SketchParser:
 
     def p_point_id(self, p):
         """point : PAREN_ID"""
-        p[0] = sym_tab.lookup(p[1], (Point,), p.lineno(1))
+        p[0] = self.sym_tab.lookup(p[1], (Point,), p.lineno(1))
 
     def p_point_expr(self, p):
         """point_expr : expr"""
@@ -641,7 +673,7 @@ class SketchParser:
 
     def p_vector_id(self, p):
         """vector : BRACKET_ID"""
-        p[0] = sym_tab.lookup(p[1], (Vector,), p.lineno(1))
+        p[0] = self.sym_tab.lookup(p[1], (Vector,), p.lineno(1))
 
     def p_vector_literal_3(self, p):
         """vector_literal : '[' scalar_expr ',' scalar_expr ',' scalar_expr ']'"""
@@ -682,11 +714,9 @@ class SketchParser:
                     vector = p[7]
             elif type(p[5]) == Vector:
                 vector = p[5]
-            else:
-                #TODO(david): raise error
-                pass
+            # else: TODO(david): raise error
                 
-        rot = Transform.Rotation(radians(p[2]), 4, vector)
+        rot = Transform.Rotation(radians(p[3]), 4, vector)
         tra = Transform.Translation(point)
         p[0] = tra * rot
 
@@ -697,7 +727,7 @@ class SketchParser:
     def p_transform_scale(self, p):
         """transform : SCALE '(' scalar_expr ')'
                      | SCALE '(' vector_expr ')'"""
-        p[0] = Transform.Scale(p[3])
+        p[0] = Transform.Scale(p[3] if type(p[3]) == Vector else (p[3],)*3)
 
     def p_transform_project_parallel(self, p):
         """transform : PROJECT '(' ')'"""
@@ -705,15 +735,15 @@ class SketchParser:
 
     def p_transform_project_perspective(self, p):
         """transform : PROJECT '(' scalar_expr ')'"""
-        p[0] = Transform.Scale(p[3])
+        p[0] = Transform.Scale((p[3],)*3)
         p[0][3][3] = 0.0
-        p[0][3][2] = -1.0
+        p[0][2][3] = -1.0
 
     def p_transform_perspective(self, p):
         """transform : PERSPECTIVE '(' scalar_expr ')'"""
         p[0] = Transform.Scale(Vector((p[3], p[3], 1.0)))
-        p[0][2][3] = 1.0
-        p[0][3][2] = -1.0
+        p[0][3][2] = 1.0
+        p[0][2][3] = -1.0
         p[0][3][3] = 0.0
 
     def p_transform_view(self, p):
@@ -721,7 +751,7 @@ class SketchParser:
                      | VIEW '(' point_expr ',' vector_expr ')'
                      | VIEW '(' point_expr ')'"""
         up = p[7] if len(p) > 7 else Vector((0.0, 1.0, 0.0))
-        vd = p[5] if len(p) > 5 else Vector(-p[3]).normalized()
+        vd = p[5] if len(p) > 5 else Vector(-p[3])
         eye = p[3]
         p[0] = Transform.View(eye, vd, up)
 
@@ -733,11 +763,11 @@ class SketchParser:
 
     def p_transform_inverse(self, p):
         """transform : INVERSE '(' transform_expr ')'"""
-        p[0] = p[1].inverse()
+        p[0] = p[1].inverted()
 
     def p_transform_id(self, p):
         """transform : DBL_BRACKET_ID"""
-        p[0] = sym_tab.lookup(p[1], (Transform,), p.lineno(1))
+        p[0] = self.sym_tab.lookup(p[1], (Transform,), p.lineno(1))
 
     def p_transform_expr(self, p):
         """transform_expr : expr"""
@@ -745,13 +775,14 @@ class SketchParser:
 
     def p_error(self, p):
         if p:
-            print("Syntax error at token", p.type)
+            print("Syntax error at token", p.type, p.lineno)
             # Just discard the token and tell the parser it's okay.
             self.parser.errok()
         else:
             print("Syntax error at EOF")
 
 if __name__=="__main__":
-    lexer = Parser(debug=True)
-    lex.runmain(lexer)
+    lexer = SketchParser(debug=True)
+    with open("example/cone.sk", 'r') as f:
+        lexer.parse(f.read())
 

@@ -1,5 +1,5 @@
 from copy import deepcopy
-#from Object import Tag
+from scene import Tag
 
 class Symbol(object):
     def __init__(self, name, tag, obj, line):

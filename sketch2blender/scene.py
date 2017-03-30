@@ -2,6 +2,9 @@ import math
 
 from geometry import Vector, Point, Transform
 
+class Tag(object):
+    pass
+
 class Dots(object):
     def __init__(self, options, points):
         self.opts = options
@@ -23,7 +26,8 @@ class Polygon(object):
         self.points = points
 
 class Sweep(object):
-    def __init__(self, slices, closed, transforms, swept):
+    def __init__(self, options, slices, closed, transforms, swept):
+        self.opts = options
         self.slices = slices
         self.closed = closed
         self.transforms = transforms
