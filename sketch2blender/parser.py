@@ -2,6 +2,8 @@ import os
 
 from math import sqrt, sin, cos, asin, acos, atan2, radians
 
+from copy import deepcopy
+
 import ply.lex as lex
 import ply.yacc as yacc
 from ply.lex import TOKEN
@@ -78,6 +80,7 @@ class SketchParser:
 
     def parse(self, string, **kwargs):
         self.parser.parse(string, *kwargs)
+        return self.objects
 
     def t_comment(self, t):
         r'[%#].*'
@@ -234,12 +237,9 @@ class SketchParser:
             ('left', 'TICK'),
     )
 
-    objects = []
-
     def p_input(self, p):
         """input : defs_and_decls global_decl_block"""
-        objects = p[1]
-        print(objects)
+        self.objects = p[1]
 
     def p_global_decl_block(self, p):
         """global_decl_block : GLOBAL '{' global_decls '}' 
@@ -340,83 +340,86 @@ class SketchParser:
     def p_def_or_decl(self, p):
         """def_or_decl : def
                        | decl"""
-        p[0] = p[1] # will set to None if using `def`
+        if p[1]:
+            if type(p[1]) == list:
+                p[0] = p[1]
+            else:
+                p[0] = [p[1]]
+        else:
+            p[0] = []
 
     def p_def(self, p):
         """def : DEF ID defable
                | tagged_defs EMPTY_ANGLE defable
                | DEF ID EMPTY_ANGLE"""
 
-        name = p[1] if p[2] == 'EMPTY_ANGLE' else p[2]
-        tag = Tag() if p[3] == 'EMPTY_ANGLE' else p[3]
+        name = p[1] if p[2] == '<>' else p[2]
+        obj = Tag() if p[3] == '<>' else p[3]
 
-        self.sym_tab.new_symbol(name, None, tag, p.lineno(1))
-        p[0] = []
+        self.sym_tab.new_symbol(name, None, obj, p.lineno(1))
+        p[0] = None
 
     def p_tagged_defs(self, p):
         """tagged_defs : DEF ID ANGLE_ID defable"""
-        p[0] = self.sym_tab.new_symbol(p[2], p[3], p[4], p.lineno(2))
+        p[0] = "" if self.sym_tab.new_symbol(p[2], p[3], p[4], p.lineno(3)) else p[2]
 
     def p_tagged_defs_rec(self, p):
         """tagged_defs : tagged_defs ANGLE_ID defable"""
-        p[0] = self.sym_tab.new_symbol(p[1], p[2], p[3], p.lineno(1))
+        p[0] = "" if self.sym_tab.new_symbol(p[1], p[2], p[3], p.lineno(2)) else p[1]
 
     def p_defable_expr(self, p):
-        """defable : expr"""
-        p[0] = [p[1]] # TODO(david): fix to wrap in Object instead of list
-
-    def p_defable_decl(self, p):
-        """defable : decl"""
+        """defable : expr
+                   | decl"""
         p[0] = p[1]
 
     def p_defable_opts_str(self, p):
         """defable : OPTS_STR"""
-        p[0] = [Options(p[1], p.lineno(1))]
+        p[0] = Options(p[1], p.lineno(1))
 
         # DECLARES ###############################################################
 
     def p_decl_dots(self, p):
         """decl : DOTS options points"""
-        p[0] = [Dots(p[2], p[3])]
+        p[0] = Dots(p[2], p[3])
 
     def p_decl_line(self, p):
         """decl : LINE options points"""
-        p[0] = [Line(p[2], p[3])]
+        p[0] = Line(p[2], p[3])
 
     def p_decl_curve(self, p):
         """decl : CURVE options points"""
-        p[0] = [Curve(p[2], p[3])]
+        p[0] = Curve(p[2], p[3])
 
     def p_decl_polygon(self, p):
         """decl : POLYGON options points"""
-        p[0] = [Polygon(p[2], p[3])]
+        p[0] = Polygon(p[2], p[3])
 
     def p_decl_sweep(self, p):
         """decl : SWEEP options '{' scalar_expr opt_star ',' transforms '}' point
                 | SWEEP options '{' scalar_expr opt_star ',' transforms '}' decl"""
-        point_obj = p[9] if type(p[9]) == list else [Point(p[9])]
-        p[0] = [Sweep(p[2], p[4], p[5], p[7], point_obj)]
+        point_obj = Point(p[9]) if type(p[9]) == Point else p[9]
+        p[0] = Sweep(p[2], p[4], p[5], p[7], point_obj)
 
     def p_decl_repeat(self, p):
         """decl : REPEAT '{' scalar_expr ',' transforms '}' decl"""
-        p[0] = [Repeat(p[3], p[5], p[7])]
+        p[0] = Repeat(p[3], p[5], p[7])
 
     def p_decl_put(self, p):
         """decl : PUT '{' transform_expr '}' decl"""
-        p[0] = [Compound(p[3], p[5])]
+        p[0] = Compound(p[3], p[5])
 
     def p_decl_special(self, p):
         """decl : SPECIAL special_args"""
-        p[0] = [Special(p[1], p[2], p.lineno(1))]
+        p[0] = Special(p[1], p[2], p.lineno(1))
 
     def p_decl_curly(self, p):
         """decl : CURLY_ID"""
-        p[0] = [self.sym_tab.lookup(p[1], O_DRAWABLE, p.lineno(1))]
+        p[0] = self.sym_tab.lookup(p[1], O_DRAWABLE, p.lineno(1))
 
     def p_decl_scoped(self, p):
         """decl : '{' new_scope defs_and_decls '}' """
         # TODO(david): throw an error
-        p[0] = p[3]
+        p[0] = deepcopy(p[3])
         self.sym_tab = self.sym_tab.pop()
 
     def p_new_scope(self, p):
@@ -523,7 +526,7 @@ class SketchParser:
                 | expr '/'  expr
                 | expr '.'  expr
                 | expr THEN expr"""
-        types = (type(p[1]), type(p[2]))
+        types = (type(p[1]), type(p[3]))
         if p[2] == '+' and types in ((float, float),
                                      (Vector, Vector),
                                      (Vector, Point),
@@ -556,7 +559,7 @@ class SketchParser:
                                        (Vector, float),
                                        (float, Vector)):
             p[0] = p[1] / p[3]
-        elif p[2] == 'THEN' and types in ((Transform, Transform),
+        elif p[2].upper() == 'THEN' and types in ((Transform, Transform),
                                           (Point, Transform),
                                           (Vector, Transform)):
             # should just be flipped version of before
@@ -784,5 +787,5 @@ class SketchParser:
 if __name__=="__main__":
     lexer = SketchParser(debug=True)
     with open("example/cone.sk", 'r') as f:
-        lexer.parse(f.read())
+        print(lexer.parse(f.read()))
 

@@ -9,6 +9,9 @@ class Symbol(object):
         self.line = line
         self.ref  = 0
 
+    def __repr__(self):
+        return "Symbol(" + self.name + "->" + repr(self.obj) + ")"
+
 class SymbolTable(dict):
     def __init__(self, **kwargs):
         super(SymbolTable, self).__init__(**kwargs)
@@ -23,12 +26,14 @@ class SymbolTable(dict):
             return symbol
         return default
 
-    def lookup(self, name, check=None, line=-1):
+    def lookup(self, name, check=tuple(), line=-1):
         """find a symbol with name, with type in check"""
         symbol = self.get(name, None)
         if symbol:
             if symbol.obj:
-                if type(symbol.obj) in check:
+                if type(symbol.obj) in check or \
+                        (type(symbol.obj) == list and \
+                         all(type(o) in check for o in symbol.obj)):
                     return symbol.obj
                 # else TODO(david): error
             # else TODO(david): error
