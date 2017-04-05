@@ -59,9 +59,9 @@ class SketchParser:
 
         self.lexer.append(lex.lex(module=self, **kwargs))
         self.parser = yacc.yacc(module=self,
-                                debug=self.debug,
                                 debugfile=self.debugfile,
-                                tabmodule=self.tabmodule)
+                                tabmodule=self.tabmodule,
+                                **kwargs)
 
         self.MAX_INPUT_DEPTH = 6
 
