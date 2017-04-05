@@ -1,6 +1,7 @@
-from geometry import Transform, Point
-from opts     import Options
 from copy     import deepcopy
+
+from .geometry import Transform, Point
+from .opts     import Options
 
 def bits(num):
     return 1 << num

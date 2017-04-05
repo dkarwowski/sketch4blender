@@ -1,6 +1,7 @@
 # PLY
 *_parsetab.py
 *.dbg
+*.zip
 
 # Created by https://www.gitignore.io/api/python,vim
 

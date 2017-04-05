@@ -4,21 +4,21 @@ from math import sqrt, sin, cos, asin, acos, atan2, radians
 
 from copy import deepcopy
 
-import ply.lex as lex
-import ply.yacc as yacc
-from ply.lex import TOKEN
+from .ply import lex as lex
+from .ply import yacc as yacc
+from .ply.lex import TOKEN
 
-import geometry
-from geometry import Vector, Point, Transform
+from . import geometry
+from .geometry import Vector, Point, Transform
 
-from global_env import GlobalEnv
+from .global_env import GlobalEnv
 
-from scene import *
+from .scene import *
 O_DRAWABLE = (Dots, Line, Curve, Polygon, Special, Sweep, Repeat, Compound)
 
-from symtable import SymbolTable
+from .symtable import SymbolTable
 
-from opts import Options
+from .opts import Options
 
 class SketchParser:
     keyword_tokens = [ 'LANGUAGE'  , 'PSTRICKS' , 'TIKZ'    , 'LaTeX'      , 'ConTeXt'     ,

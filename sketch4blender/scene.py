@@ -2,7 +2,7 @@ import math
 
 from copy import deepcopy
 
-from geometry import Vector, Point, Transform
+from .geometry import Vector, Point, Transform
 
 class Tag(object):
     pass
