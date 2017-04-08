@@ -2,7 +2,7 @@
 bl_info = {
         "name" : "Sketch 4 Blender",
         "author" : "David Karwowski",
-        "version" : (0, 0, 1),
+        "version" : (0, 0, 2),
         "location" : "File > Import-Export",
         "description" : "Import Sketch (*.sk) Files into Blender objects",
         "warning" : "Not fully functional",
@@ -39,7 +39,10 @@ class ImportSK(bpy.types.Operator, ImportHelper):
         filepath = os.fsencode(keywords["filepath"])
         with open(filepath, 'r') as sk_file:
             objects = parser.parse(sk_file.read())
-            print(objects)
+            for obj in objects:
+                obj.flatten(parser.env.camera)
+                obj.render_to_blender(context)
+            #print(objects)
         return {"FINISHED"}
 
 def menu_func_import(self, context):

@@ -67,6 +67,7 @@ class SketchParser:
 
         self.sym_tab = SymbolTable()
         self.env     = GlobalEnv()
+        self.objects = []
 
     def run(self):
         while 1:
