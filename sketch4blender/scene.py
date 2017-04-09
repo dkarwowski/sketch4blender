@@ -32,7 +32,7 @@ def _get_gpencil_frame(context):
         gpl = gp.layers.new('gpl', set_active = True)
 
     if gpl.frames:
-        fr = gpl.active_frame
+        fr = gpl.active_frame if gpl.active_frame else gpl.frames[0]
     else:
         fr = gpl.frames.new(1)
 
@@ -109,6 +109,15 @@ class Curve(Renderable):
     def flatten(self, transform):
         self.points = [p * transform for p in self.points]
 
+    def render_to_blender(self, context):
+        fr = _get_gpencil_frame(context)
+        str = fr.strokes.new()
+        str.draw_mode = "3DSPACE"
+
+        str.points.add(count = len(self.points))
+        for i, p in enumerate(self.points):
+            str.points[i].co = tuple(p)
+
 
 class Polygon(Renderable):
     def __init__(self, options, points):
@@ -152,6 +161,18 @@ class Compound(Renderable):
 
     def __repr__(self):
         return "Compound(" + repr(self.child) + ")"
+
+    def flatten(self, transform):
+        transform *= self.transform
+        # TODO(david): should flatten return the flattened object?
+        #              just in case that this requies a different return
+        for c in self.child:
+            c.flatten(transform)
+
+    def render_to_blender(self, context):
+        for c in self.child:
+            print(c)
+            c.render_to_blender(context)
 
 
 class Special(Renderable):
