@@ -26,6 +26,14 @@ def _get_gpencil_frame(context):
 
     gp = S.grease_pencil
 
+    if gp.palettes:
+        gpp = gp.palettes[0]
+    else:
+        gpp = gp.palettes.new("test", set_active = True)
+
+    gpc = gpp.colors.new()
+    gpc.name = "black"
+
     if gp.layers:
         gpl = gp.layers[0]
     else:
@@ -89,7 +97,8 @@ class Line(Renderable):
 
     def render_to_blender(self, context):
         fr = _get_gpencil_frame(context)
-        str = fr.strokes.new()
+        str = fr.strokes.new("black")
+        str.line_width = 3
         str.draw_mode = "3DSPACE"
 
         str.points.add(count = len(self.points))
@@ -112,11 +121,49 @@ class Curve(Renderable):
     def render_to_blender(self, context):
         fr = _get_gpencil_frame(context)
         str = fr.strokes.new()
+        str.line_width = 3
         str.draw_mode = "3DSPACE"
 
-        str.points.add(count = len(self.points))
-        for i, p in enumerate(self.points):
+        hermite_points = hermite_3d(self.points)
+        str.points.add(count = len(hermite_points))
+        for i, p in enumerate(hermite_points):
             str.points[i].co = tuple(p)
+
+def hermite_interp(y, mu, tension=0, bias=0):
+    if len(y) != 4:
+        return 0.0
+
+    pbias = (1.0 + bias) * (1.0 - tension) / 2.0
+    mbias = (1.0 - bias) * (1.0 - tension) / 2.0
+
+    mu2 = mu * mu
+    mu3 = mu2 * mu
+
+    m0 = (y[1] - y[0]) * pbias + (y[2] - y[1]) * mbias
+    m1 = (y[2] - y[1]) * pbias + (y[3] - y[2]) * mbias
+
+    a0 =  2.0 * mu3 - 3.0 * mu2 + 1.0
+    a1 =        mu3 - 2.0 * mu2 + mu
+    a2 =        mu3 -       mu2
+    a3 = -2.0 * mu3 + 3.0 * mu2
+
+    return a0 * y[1] + a1 * m0 + a2 * m1 + a3 * y[2]
+
+def hermite_3d(pts):
+    # extend the points to create full points
+    pts = [pts[0]] + pts + [pts[-1]]
+    if len(pts) < 4:
+        return []
+
+    result = []
+    # do this for all consecutive 4
+    for i in range(len(pts) - 3):
+        xs, ys, zs = zip(*pts[i:i+4])
+        # calculate and zip the points to interpolate
+        result += list(zip([hermite_interp(xs, mu/10.0) for mu in range(0, 11)],
+                           [hermite_interp(ys, mu/10.0) for mu in range(0, 11)],
+                           [hermite_interp(zs, mu/10.0) for mu in range(0, 11)]))
+    return result
 
 
 class Polygon(Renderable):
