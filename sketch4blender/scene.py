@@ -203,13 +203,61 @@ class Sweep(Renderable):
                     line.points.append(sweep_xf * self.swept)
                     for j in range(len(accum)):
                         accum[j] = accum[j] * self.transforms[j]
-                    print("------")
-                    print(sweep_xf)
-                    print(accum)
-                    print(self.transforms)
-                    print(sweep_xf * self.swept)
-                    print(self.swept * sweep_xf)
                 output.append(line)
+        else:
+            # have to flatten all drawable objects
+            swept = self.swept.flatten(Transform.Identity(4))
+            accum = [Transform.Identity(4) for i in self.transforms]
+
+            # specific for each individual swept
+            if type(swept) == Line:
+                a = pts_1
+                b = pts_2
+                a[:len(swept.points)] = swept.points[:]
+
+                # make faces for each pair of created lines
+                # if this is closed, then create polygons to seal the "tube"
+                # that gets created ultimately
+                if self.closed:
+                    e1 = Polygon(self.opts, [])
+                    e2 = Polygon(self.opts, [])
+                    face_opts = swept.opts if swept.opts else self.opts
+
+                    for i in range(self.slices - 1):
+                        for j in range(len(accum)):
+                            accum[j] = accum[j] * self.transforms[j]
+                        sweep_xf = transform.Identity(4)
+                        for xf in accum:
+                            sweep_xf = xf * sweep_xf
+                        b = [sweep_xf * p for p in swept.points]
+                        e1.points.append(transform * b[-1])
+                        e2.points = [transform * b[0]] + e2.points
+                        for j in range(len(a)):
+                            # TODO(david): make faces
+                            continue
+                        a, b = b, a
+
+                    e1.points.append(transform * swept.points[-1])
+                    e2.points = [transform * swept.points[0]] + e2.points
+                    for j in range(len(a)):
+                        # TODO(david): make faces
+                        continue
+                    output.append(e1)
+                    output.append(e2)
+                else:
+                    for i in range(self.slices - 1):
+                        for j in range(len(accum)):
+                            accum[j] = accum[j] * self.transforms[j]
+                        sweep_xf = transform.Identity(4)
+                        for xf in accum:
+                            sweep_xf = xf * sweep_xf
+                        b = [sweep_xf * p for p in swept.points]
+                        e1.points.append(transform * b[-1])
+                        e2.points = [transform * b[0]] + e2.points
+                        for j in range(len(a)):
+                            # TODO(david): make faces
+                            continue
+                        a, b = b, a
         return Compound(Transform.Identity(4), output)
 
 
