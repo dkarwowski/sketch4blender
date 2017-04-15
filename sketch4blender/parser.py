@@ -69,6 +69,15 @@ class SketchParser:
         self.env     = GlobalEnv()
         self.objects = []
 
+    def reset(self):
+        del self.sym_tab
+        del self.env
+        del self.objects
+
+        self.sym_tab = SymbolTable()
+        self.env     = GlobalEnv()
+        self.objects = []
+
     def run(self):
         while 1:
             try:

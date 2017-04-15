@@ -43,6 +43,7 @@ class ImportSK(bpy.types.Operator, ImportHelper):
                 obj = obj.flatten(parser.env.camera)
                 obj.render_to_blender(context)
             #print(objects)
+        parser.reset()
         return {"FINISHED"}
 
 def menu_func_import(self, context):

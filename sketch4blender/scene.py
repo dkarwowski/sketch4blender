@@ -10,6 +10,11 @@ from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 
 
 class Renderable(object):
+    uuid = 0
+    def __init__(self):
+        self.uuid = Renderable.uuid
+        Renderable.uuid += 1
+
     def flatten(self, transform):
         print("no flatten:", repr(self))
         return self
@@ -45,7 +50,7 @@ class Renderable(object):
         if gp.layers:
             gpl = gp.layers[0]
         else:
-            gpl = gp.layers.new('gpl', set_active = True)
+            gpl = gp.layers.new('gpl' + str(self.uuid), set_active = True)
 
         if gpl.frames:
             fr = gpl.active_frame if gpl.active_frame else gpl.frames[0]
@@ -151,28 +156,35 @@ class Curve(Renderable):
 
 
 class Polygon(Renderable):
-    uuid = 0
-
     def __init__(self, options, points):
         super(Polygon, self).__init__()
-        self.uuid = Polygon.uuid
         self.opts = options
         self.points = deepcopy(points)
-        Polygon.uuid += 1
 
     def __repr__(self):
         return "Polygon(" + repr(self.points) + ")"
 
     def render_to_blender(self, context):
+        # create the correct vertices and face
         verts = tuple(tuple(p) for p in self.points)
         faces = (tuple(i for i in range(len(self.points))),)
+
+        # mesh and object created separately
         me = bpy.data.meshes.new("polygon" + str(self.uuid) + "mesh")
         ob = bpy.data.objects.new("polygon" + str(self.uuid), me)
+        # TODO(david): see if this has to be changed, depending on the
+        # coordinates of the mesh itself?
         ob.location = (0, 0, 0)
+        # debugging use mainly
         ob.show_name = True
+
         bpy.context.scene.objects.link(ob)
+
+        # add the actual data to the mesh, and generate edges
         me.from_pydata(verts, [], faces)
         me.update(calc_edges = True)
+
+        # all generated objects should be selected when done
         ob.select = True
 
 
