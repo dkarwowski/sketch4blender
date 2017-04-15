@@ -518,7 +518,7 @@ class SketchParser:
                 | point
                 | vector
                 | transform"""
-        p[0] = p[1]
+        p[0] = deepcopy(p[1])
 
     def p_expr_bop(self, p):
         """expr : expr '+'  expr
@@ -539,7 +539,7 @@ class SketchParser:
                                        (Point, Vector),
                                        (Vector, Vector)):
             # ensure Vector when subtracting points
-            p[0] = Vector(p[1] - p[3]) if types[1] == Point else p[1] - p[3]
+            p[0] = Vector(p[1] - p[3]) if type(p[2]) == Point else p[1] - p[3]
         elif (p[2] == '*' and types in ((float, float),
                                        (float, Vector),
                                        (Vector, float),
@@ -667,7 +667,7 @@ class SketchParser:
     def p_point_expr(self, p):
         """point_expr : expr"""
         if type(p[1]) == Point:
-            p[0] = p[1]
+            p[0] = Point(p[1])
         else:
             p[0] = Point((0.0, 0.0, 0.0)) #TODO(david): error message
 
@@ -691,7 +691,7 @@ class SketchParser:
     def p_vector_expr(self, p):
         """vector_expr : expr"""
         if type(p[1]) == Vector:
-            p[0] = p[1]
+            p[0] = Vector(p[1])
         else:
             p[0] = Vector((0.0, 0.0, 0.0)) #TODO(david): error message
 
@@ -706,8 +706,7 @@ class SketchParser:
 
     def p_transform_rotate(self, p):
         """transform : ROTATE '(' scalar_expr ')'
-                     | ROTATE '(' scalar_expr ',' vector_expr ')'
-                     | ROTATE '(' scalar_expr ',' point_expr  ')'
+                     | ROTATE '(' scalar_expr ',' expr ')'
                      | ROTATE '(' scalar_expr ',' point_expr  ',' vector_expr ')'"""
         point = Point((0.0, 0.0, 0.0))
         vector = Vector((0.0, 0.0, 1.0))
@@ -729,9 +728,14 @@ class SketchParser:
         p[0] = Transform.Translation(p[3])
 
     def p_transform_scale(self, p):
-        """transform : SCALE '(' scalar_expr ')'
-                     | SCALE '(' vector_expr ')'"""
-        p[0] = Transform.Scale(p[3] if type(p[3]) == Vector else (p[3],)*3)
+        """transform : SCALE '(' expr ')'"""
+        scale_by = (0, 0, 0)
+        if type(p[3]) == float:
+            scale_by = tuple(p[3] for i in range(3))
+        elif type(p[3]) == Vector:
+            scale_by = tuple(p[3])
+        # TODO(david): error if else
+        p[0] = Transform.Scale(scale_by)
 
     def p_transform_project_parallel(self, p):
         """transform : PROJECT '(' ')'"""
@@ -775,7 +779,7 @@ class SketchParser:
 
     def p_transform_expr(self, p):
         """transform_expr : expr"""
-        p[0] = p[1] if type(p[1]) == Transform else Transform()
+        p[0] = deepcopy(p[1]) if type(p[1]) == Transform else Transform()
 
     def p_error(self, p):
         if p:
