@@ -12,6 +12,7 @@ from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 class Renderable(object):
     def flatten(self, transform):
         print("no flatten:", repr(self))
+        return self
 
     def render_to_blender(self, context):
         print("no to_blender:", repr(self))
@@ -69,7 +70,8 @@ class Dots(Renderable):
         return "Dots(" + repr(self.points) + ")"
 
     def flatten(self, transform):
-        self.points = [p * transform for p in self.points]
+        points = [p * transform for p in self.points]
+        return Dots(self.opts, points)
 
     def render_to_blender(self, context):
         fr = self._get_gpencil_frame()
@@ -92,7 +94,8 @@ class Line(Renderable):
 
     def flatten(self, transform):
         # TODO(david): filter line options properly
-        self.points = [p * transform for p in self.points]
+        points = [p * transform for p in self.points]
+        return Line(self.opts, points)
 
     def render_to_blender(self, context):
         fr = self._get_gpencil_frame()
@@ -115,7 +118,8 @@ class Curve(Renderable):
         return "Curve(" + repr(self.points) + ")"
 
     def flatten(self, transform):
-        self.points = [p * transform for p in self.points]
+        points = [p * transform for p in self.points]
+        return Curve(self.opts, points)
 
     def render_to_blender(self, context):
         fr = self._get_gpencil_frame()
@@ -160,7 +164,7 @@ class Sweep(Renderable):
     def __init__(self, options, slices, closed, transforms, swept):
         super(Sweep, self).__init__()
         self.opts = options
-        self.slices = slices
+        self.slices = int(slices)
         self.closed = closed
         self.transforms = transforms
         self.swept = deepcopy(swept)
@@ -169,9 +173,44 @@ class Sweep(Renderable):
         return "Sweep(" + repr(self.slices) + ", " + repr(self.closed) + ", " + repr(self.swept) + ")"
 
     def flatten(self, transform):
-        transforms = []
+        accum = []
         pts_1 = []
         pts_2 = []
+        output = []
+
+        if type(self.swept) == list:
+            print("sweeping list")
+        if type(self.swept) == Point:
+            accum = [Transform.Identity(4) for i in self.transforms]
+            if self.closed:
+                polygon = Polygon(self.opts, [])
+                for i in range(self.slices):
+                    sweep_xf = Transform.Identity(4)
+                    for xf in accum:
+                        sweep_xf = xf * sweep_xf
+                    sweep_xf = transform * sweep_xf
+                    polygon.points.append(sweep_xf * self.swept)
+                    for j in range(len(accum)):
+                        accum[j] = accum[j] * self.transforms[j]
+                output.append(polygon)
+            else:
+                line = Line(self.opts, [])
+                for i in range(self.slices):
+                    sweep_xf = Transform.Identity(4)
+                    for xf in accum:
+                        sweep_xf = xf * sweep_xf
+                    sweep_xf = transform * sweep_xf
+                    line.points.append(sweep_xf * self.swept)
+                    for j in range(len(accum)):
+                        accum[j] = accum[j] * self.transforms[j]
+                    print("------")
+                    print(sweep_xf)
+                    print(accum)
+                    print(self.transforms)
+                    print(sweep_xf * self.swept)
+                    print(self.swept * sweep_xf)
+                output.append(line)
+        return Compound(Transform.Identity(4), output)
 
 
 class Repeat(Renderable):
@@ -198,8 +237,8 @@ class Compound(Renderable):
         transform *= self.transform
         # TODO(david): should flatten return the flattened object?
         #              just in case that this requies a different return
-        for c in self.child:
-            c.flatten(transform)
+        children = [c.flatten(transform) for c in self.child]
+        return Compound(Matrix.Identity(4), children)
 
     def render_to_blender(self, context):
         for c in self.child:

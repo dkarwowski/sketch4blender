@@ -40,7 +40,7 @@ class ImportSK(bpy.types.Operator, ImportHelper):
         with open(filepath, 'r') as sk_file:
             objects = parser.parse(sk_file.read())
             for obj in objects:
-                obj.flatten(parser.env.camera)
+                obj = obj.flatten(parser.env.camera)
                 obj.render_to_blender(context)
             #print(objects)
         return {"FINISHED"}

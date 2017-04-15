@@ -755,19 +755,19 @@ class SketchParser:
         p[0][3][3] = 0.0
 
     def p_transform_view(self, p):
-        """transform : VIEW '(' point_expr ',' vector_expr ',' vector_expr ')'
-                     | VIEW '(' point_expr ',' vector_expr ')'
+        """transform : VIEW '(' point_expr ',' expr ',' vector_expr ')'
+                     | VIEW '(' point_expr ',' expr ')'
                      | VIEW '(' point_expr ')'"""
         up = p[7] if len(p) > 7 else Vector((0.0, 1.0, 0.0))
-        vd = p[5] if len(p) > 5 else Vector(-p[3])
+        vd = Vector(-p[3])
+        if len(p) > 5:
+            if type(p[5]) == Vector:
+                vd = p[5]
+            elif type(p[5]) == Point:
+                vd = p[5] - p[3]
+            # TODO(david): else print error
         eye = p[3]
         p[0] = Transform.View(eye, vd, up)
-
-    def p_transform_view_lookat(self, p):
-        """transform : VIEW '(' point_expr ',' point_expr ',' vector_expr ')'
-                     | VIEW '(' point_expr ',' point_expr ')'"""
-        up = p[7] if len(p) > 7 else Vector((0.0, 1.0, 0.0))
-        p[0] = Transform.View(p[3], p[5] - p[3], up)
 
     def p_transform_inverse(self, p):
         """transform : INVERSE '(' transform_expr ')'"""
