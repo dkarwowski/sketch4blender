@@ -5,8 +5,19 @@ Blender addon that can be used to import
 
 ## Current Version
 
-Simply prints the imported objects (does not create relevant Blender scene
-objects).
+Properly Generates
+
+[x] Lines
+[x] Curves
+[x] Polygons
+[x] Sweep Points
+[x] Sweep Lines
+[x] Compound
+
+Needs to be Implemented
+
+[ ] Sweep Polygon
+[ ] Repeat
 
 ## Installation
 
