@@ -19,6 +19,7 @@ from bpy_extras.io_utils import (
         ImportHelper,
         )
 from .parser import SketchParser
+from .geometry import Transform
 
 parser = None
 
@@ -40,7 +41,7 @@ class ImportSK(bpy.types.Operator, ImportHelper):
         with open(filepath, 'r') as sk_file:
             objects = parser.parse(sk_file.read())
             for obj in objects:
-                obj = obj.flatten(parser.env.camera)
+                obj = obj.flatten(Transform.Identity(4))#parser.env.camera)
                 obj.render_to_blender(context)
             #print(objects)
         parser.reset()

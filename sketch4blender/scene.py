@@ -75,7 +75,7 @@ class Dots(Renderable):
         return "Dots(" + repr(self.points) + ")"
 
     def flatten(self, transform):
-        points = [p * transform for p in self.points]
+        points = [p for p in self.points]
         return Dots(self.opts, points)
 
     def render_to_blender(self, context):
@@ -99,7 +99,7 @@ class Line(Renderable):
 
     def flatten(self, transform):
         # TODO(david): filter line options properly
-        points = [p * transform for p in self.points]
+        points = [p for p in self.points]
         return Line(self.opts, points)
 
     def render_to_blender(self, context):
@@ -123,7 +123,7 @@ class Curve(Renderable):
         return "Curve(" + repr(self.points) + ")"
 
     def flatten(self, transform):
-        points = [p * transform for p in self.points]
+        points = [p for p in self.points]
         return Curve(self.opts, points)
 
     def render_to_blender(self, context):
@@ -201,10 +201,62 @@ class Sweep(Renderable):
         return "Sweep(" + repr(self.slices) + ", " + repr(self.closed) + ", " + repr(self.swept) + ")"
 
     def flatten(self, transform):
-        accum = []
+        def best_split(v0, v1, v2, v3):
+            d0 = v2 - v0
+            d1 = v3 - v1
+            n = d0.cross(d1)
+
+            if n.length < 0.001:
+                return -1
+
+            def length_sqr(v):
+                return v.length_squared
+            e_max = max([v1 - v0, v2 - v1, v3 - v2], key=length_sqr)
+            warp = e_max.dot(n)
+
+            if abs(warp) < 1e-5:
+                return -1
+            elif d0.length_squared < d1.length_squared:
+                return 0
+            else:
+                return 1
+
+        def make_face(opts, transform, v0, v1, v2, v3, split):
+            result = []
+            
+            sp = best_split(v0, v1, v2, v3)
+            if split or sp == -1:
+                result.append(Polygon(opts, []))
+                result[-1].points.append(transform * v0)
+                result[-1].points.append(transform * v1)
+                result[-1].points.append(transform * v2)
+                result[-1].points.append(transform * v3)
+            elif sp == 0:
+                result.append(Polygon(opts, []))
+                result[-1].points.append(transform * v0)
+                result[-1].points.append(transform * v1)
+                result[-1].points.append(transform * v2)
+                result.append(Polygon(opts, []))
+                result[-1].points.append(transform * v2)
+                result[-1].points.append(transform * v3)
+                result[-1].points.append(transform * v0)
+            else:
+                result.append(Polygon(opts, []))
+                result[-1].points.append(transform * v1)
+                result[-1].points.append(transform * v2)
+                result[-1].points.append(transform * v3)
+                result.append(Polygon(opts, []))
+                result[-1].points.append(transform * v3)
+                result[-1].points.append(transform * v0)
+                result[-1].points.append(transform * v1)
+
+            return result
+
         pts_1 = []
         pts_2 = []
         output = []
+
+        split = self.opts.get("split", True)
 
         if type(self.swept) == list:
             print("sweeping list")
@@ -241,7 +293,7 @@ class Sweep(Renderable):
             if type(swept) == Line:
                 a = pts_1
                 b = pts_2
-                a[:len(swept.points)] = swept.points[:]
+                a = swept.points[:]
 
                 # make faces for each pair of created lines
                 # if this is closed, then create polygons to seal the "tube"
@@ -260,31 +312,38 @@ class Sweep(Renderable):
                         b = [sweep_xf * p for p in swept.points]
                         e1.points.append(transform * b[-1])
                         e2.points = [transform * b[0]] + e2.points
-                        for j in range(len(a)):
-                            # TODO(david): make faces
-                            continue
+                        for j in range(len(a) - 1):
+                            output += make_face(self.opts,
+                                                transform,
+                                                b[j], b[j + 1],
+                                                a[j + 1], a[j],
+                                                split)
                         a, b = b, a
 
                     e1.points.append(transform * swept.points[-1])
                     e2.points = [transform * swept.points[0]] + e2.points
-                    for j in range(len(a)):
-                        # TODO(david): make faces
-                        continue
+                    for j in range(len(a) - 1):
+                        output += make_face(face_opts,
+                                            transform,
+                                            swept.points[j], swept.points[j + 1],
+                                            a[j + 1], a[j],
+                                            split)
                     output.append(e1)
                     output.append(e2)
                 else:
-                    for i in range(self.slices - 1):
+                    for i in range(self.slices):
                         for j in range(len(accum)):
                             accum[j] = accum[j] * self.transforms[j]
                         sweep_xf = transform.Identity(4)
                         for xf in accum:
                             sweep_xf = xf * sweep_xf
                         b = [sweep_xf * p for p in swept.points]
-                        e1.points.append(transform * b[-1])
-                        e2.points = [transform * b[0]] + e2.points
-                        for j in range(len(a)):
-                            # TODO(david): make faces
-                            continue
+                        for j in range(len(a) - 1):
+                            output += make_face(self.opts,
+                                                Transform.Identity(4), #transform,
+                                                b[j], b[j + 1],
+                                                a[j + 1], a[j],
+                                                split)
                         a, b = b, a
         return Compound(Transform.Identity(4), output)
 
@@ -314,7 +373,7 @@ class Compound(Renderable):
         # TODO(david): should flatten return the flattened object?
         #              just in case that this requies a different return
         children = [c.flatten(transform) for c in self.child]
-        return Compound(Matrix.Identity(4), children)
+        return Compound(Transform.Identity(4), children)
 
     def render_to_blender(self, context):
         for c in self.child:
