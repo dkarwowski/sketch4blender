@@ -2,7 +2,7 @@
 bl_info = {
         "name" : "Sketch 4 Blender",
         "author" : "David Karwowski",
-        "version" : (0, 0, 5),
+        "version" : (1, 0, 0),
         "location" : "File > Import-Export",
         "description" : "Import Sketch (*.sk) Files into Blender objects",
         "category" : "Import-Export",
