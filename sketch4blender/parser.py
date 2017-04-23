@@ -328,7 +328,7 @@ class SketchParser:
     def p_opt_baseline(self, p):
         """opt_baseline : '[' scalar_expr ']'
                         |"""
-        if p[1] == '[':
+        if len(p) > 1:
             p[0] = p[2]
         else:
             p[0] = None
@@ -445,11 +445,11 @@ class SketchParser:
 
     def p_option_id_list(self, p):
         """option_id_list : option_id_list ',' ID"""
-        p[0] = p[1] + [self.sym_tab.lookup(p[3], (Options,), p.lineno(1))]
+        p[0] = p[1].update(self.sym_tab.lookup(p[3], (Options,), p.lineno(1)))
 
     def p_option_id_list_base(self, p):
         """option_id_list : ID"""
-        p[0] = [self.sym_tab.lookup(p[1], (Options,), p.lineno(1))]
+        p[0] = self.sym_tab.lookup(p[1], (Options,), p.lineno(1))
 
     def p_options_str(self, p):
         """options : OPTS_STR"""
@@ -465,7 +465,7 @@ class SketchParser:
 
     def p_options_empty(self, p):
         """options :"""
-        p[0] = None
+        p[0] = Options("=")
 
     # POINTS #################################################################
 

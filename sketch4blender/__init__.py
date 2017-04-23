@@ -5,7 +5,6 @@ bl_info = {
         "version" : (0, 0, 5),
         "location" : "File > Import-Export",
         "description" : "Import Sketch (*.sk) Files into Blender objects",
-        "warning" : "Not fully functional",
         "category" : "Import-Export",
 }
 

@@ -256,10 +256,11 @@ class Sweep(Renderable):
         pts_2 = []
         output = []
 
-        split = self.opts.get("split", True)
+        if self.opts:
+            split = self.opts.get("split", True)
+        else:
+            split = True
 
-        if type(self.swept) == list:
-            print("sweeping list")
         if type(self.swept) == Point:
             accum = [Transform.Identity(4) for i in self.transforms]
             if self.closed:
@@ -285,52 +286,74 @@ class Sweep(Renderable):
                         accum[j] = accum[j] * self.transforms[j]
                 output.append(line)
         else:
-            # have to flatten all drawable objects
-            swept = self.swept.flatten(Transform.Identity(4))
-            accum = [Transform.Identity(4) for i in self.transforms]
+            swept_list = self.swept if type(self.swept) == list else [self.swept]
+            for swept in swept_list:
+                # have to flatten all drawable objects
+                swept = swept.flatten(Transform.Identity(4))
+                accum = [Transform.Identity(4) for i in self.transforms]
 
-            # specific for each individual swept
-            if type(swept) == Line:
-                a = pts_1
-                b = pts_2
-                a = swept.points[:]
+                # specific for each individual swept
+                if type(swept) == Line:
+                    a = pts_1
+                    b = pts_2
+                    a = swept.points[:]
 
-                # make faces for each pair of created lines
-                # if this is closed, then create polygons to seal the "tube"
-                # that gets created ultimately
-                if self.closed:
-                    e1 = Polygon(self.opts, [])
-                    e2 = Polygon(self.opts, [])
-                    face_opts = swept.opts if swept.opts else self.opts
+                    # make faces for each pair of created lines
+                    # if this is closed, then create polygons to seal the "tube"
+                    # that gets created ultimately
+                    if self.closed:
+                        e1 = Polygon(self.opts, [])
+                        e2 = Polygon(self.opts, [])
+                        face_opts = swept.opts if swept.opts else self.opts
 
-                    for i in range(self.slices - 1):
-                        for j in range(len(accum)):
-                            accum[j] = accum[j] * self.transforms[j]
-                        sweep_xf = transform.Identity(4)
-                        for xf in accum:
-                            sweep_xf = xf * sweep_xf
-                        b = [sweep_xf * p for p in swept.points]
-                        e1.points.append(transform * b[-1])
-                        e2.points = [transform * b[0]] + e2.points
+                        for i in range(self.slices - 1):
+                            for j in range(len(accum)):
+                                accum[j] = accum[j] * self.transforms[j]
+                            sweep_xf = transform.Identity(4)
+                            for xf in accum:
+                                sweep_xf = xf * sweep_xf
+                            b = [sweep_xf * p for p in swept.points]
+                            e1.points.append(transform * b[-1])
+                            e2.points = [transform * b[0]] + e2.points
+                            for j in range(len(a) - 1):
+                                output += make_face(self.opts,
+                                                    transform,
+                                                    b[j], b[j + 1],
+                                                    a[j + 1], a[j],
+                                                    split)
+                            a, b = b, a
+
+                        e1.points.append(transform * swept.points[-1])
+                        e2.points = [transform * swept.points[0]] + e2.points
                         for j in range(len(a) - 1):
-                            output += make_face(self.opts,
+                            output += make_face(face_opts,
                                                 transform,
-                                                b[j], b[j + 1],
+                                                swept.points[j], swept.points[j + 1],
                                                 a[j + 1], a[j],
                                                 split)
-                        a, b = b, a
-
-                    e1.points.append(transform * swept.points[-1])
-                    e2.points = [transform * swept.points[0]] + e2.points
-                    for j in range(len(a) - 1):
-                        output += make_face(face_opts,
-                                            transform,
-                                            swept.points[j], swept.points[j + 1],
-                                            a[j + 1], a[j],
-                                            split)
-                    output.append(e1)
-                    output.append(e2)
-                else:
+                        output.append(e1)
+                        output.append(e2)
+                    else:
+                        for i in range(self.slices):
+                            for j in range(len(accum)):
+                                accum[j] = accum[j] * self.transforms[j]
+                            sweep_xf = transform.Identity(4)
+                            for xf in accum:
+                                sweep_xf = xf * sweep_xf
+                            b = [sweep_xf * p for p in swept.points]
+                            for j in range(len(a) - 1):
+                                output += make_face(self.opts,
+                                                    Transform.Identity(4), #transform,
+                                                    b[j], b[j + 1],
+                                                    a[j + 1], a[j],
+                                                    split)
+                            a, b = b, a
+                elif type(swept) == Polygon:
+                    end_opts = swept.opts if swept.opts else self.opts
+                    # if self.closed: warn about ignored
+                    a = swept.points[:]
+                    output.append(Polygon(end_opts, []))
+                    output[-1].points = [transform * i for i in a]
                     for i in range(self.slices):
                         for j in range(len(accum)):
                             accum[j] = accum[j] * self.transforms[j]
@@ -345,6 +368,9 @@ class Sweep(Renderable):
                                                 a[j + 1], a[j],
                                                 split)
                         a, b = b, a
+                    output.append(Polygon(end_opts, []))
+                    output[-1].points = [transform * i for i in a.__reversed__()]
+
         return Compound(Transform.Identity(4), output)
 
 
@@ -358,12 +384,26 @@ class Repeat(Renderable):
     def __repr__(self):
         return "Repeat(" + repr(self.repeated) + ", " + repr(self.n) + ")"
 
+    def flatten(self, transform):
+        if self.n <= 0:
+            return None
+        flat_repeated = self.repeated.flatten(Transform.Identity(4))
+        accum = deepcopy(self.transforms)
+        output = []
+        for i in range(self.n):
+            child_xf = transform.Identity(4)
+            for xf in accum:
+                child_xf = xf * child_xf
+            output = child.flatten(child_xf) + output
+            for j in range(len(accum)):
+                accum[j] = accum[j] * self.transforms[j]
+
 
 class Compound(Renderable):
     def __init__(self, transform, child):
         super(Compound, self).__init__()
         self.transform = transform
-        self.child = deepcopy(child)
+        self.child = deepcopy(child) if type(child) == list else [deepcopy(child)]
 
     def __repr__(self):
         return "Compound(" + repr(self.child) + ")"

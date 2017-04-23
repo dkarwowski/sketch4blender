@@ -7,17 +7,14 @@ Blender addon that can be used to import
 
 Properly Generates
 
-[x] Lines
-[x] Curves
-[x] Polygons
-[x] Sweep Points
-[x] Sweep Lines
-[x] Compound
-
-Needs to be Implemented
-
-[ ] Sweep Polygon
-[ ] Repeat
+- [x] Lines
+- [x] Curves
+- [x] Polygons
+- [x] Sweep Points
+- [x] Sweep Lines
+- [x] Compound
+- [x] Sweep Polygon
+- [x] Repeat
 
 ## Installation
 
